@@ -1,45 +1,47 @@
-import { Cell } from "./cell.js";
+import { Cell, generateCellId } from "./cell.js";
 
 const CheckSpan = [-1, 0, 1];
 
 export class Evolution {
-    private alive: Set<Cell> = new Set();
-    
+    private alive: Map<string, Cell> = new Map();
+
     private deadCache: Set<Cell> = new Set();
     private rebornCache: Set<Cell> = new Set();
     private executeCache: Set<Cell> = new Set();
     constructor(
-        private lifeMatrix: Cell[][]
+        cells: Cell[] = [],
+        private globalWorld: boolean = false,
+        private worldX: number = 0,
+        private worldY: number = 0,
     ) {
-        lifeMatrix.forEach(row => {
-            row.forEach(cell => {
-                if (cell.alive) {
-                    this.alive.add(cell);
-                }
-            });
-        });
+        this.addAliveCell(cells);
     }
 
-    private getCell(x: number, y: number): Cell | undefined {
-        try {
-            return this.lifeMatrix[x][y];
-        } catch (e) {
-            return undefined;
+    private getAliveCell(x: number, y: number): Cell | undefined {
+        if (!this.globalWorld) {
+            if (x < 0 || y < 0 || x > this.worldX || y > this.worldY) {
+                return undefined;
+            }
         }
+        return this.alive.get(generateCellId(x, y));
+    }
+
+    private createCell(x: number, y: number, alive: boolean = false): Cell {
+        return new Cell(x, y, alive);
     }
 
     private execute(cell: Cell) {
         cell.alive = false;
-        this.alive.delete(cell);
+        this.alive.delete(cell.id);
     }
 
     private reborn(cell: Cell) {
         cell.alive = true;
-        this.alive.add(cell);
+        this.alive.set(cell.id, cell);
     }
 
     getAliveCells() {
-        return [...this.alive];
+        return [...this.alive.values()];
     }
 
     eval() {
@@ -53,23 +55,20 @@ export class Evolution {
                     if (xSpan === 0 && ySpan === 0) {
                         return;
                     }
-    
+
                     const checkX = cell.x + xSpan;
                     const checkY = cell.y + ySpan;
-                    const checkCell = this.getCell(checkX, checkY);
+                    const aliveCell = this.getAliveCell(checkX, checkY);
 
-                    if (checkCell) {
-                        if (checkCell.alive) {
-                            lifeNumber++;
-                        } else {
-                            deadNumber++;
-                            // may be to alive
-                            this.deadCache.add(checkCell);
-                        }
+                    if (aliveCell) {
+                        lifeNumber++;
+                    } else {
+                        deadNumber++;
+                        this.deadCache.add(this.createCell(checkX, checkY));
                     }
                 })
             });
-    
+
             if (lifeNumber < 2 || lifeNumber > 3) {
                 // to die
                 this.executeCache.add(cell);
@@ -84,15 +83,13 @@ export class Evolution {
                     if (xSpan === 0 && ySpan === 0) {
                         return;
                     }
-    
+
                     const checkX = cell.x + xSpan;
                     const checkY = cell.y + ySpan;
-                    const checkCell = this.getCell(checkX, checkY);
-    
-                    if (checkCell) {
-                        if (checkCell.alive) {
-                            lifeNumber++;
-                        }
+                    const aliveCell = this.getAliveCell(checkX, checkY);
+
+                    if (aliveCell) {
+                        lifeNumber++;
                     }
                 })
             });
@@ -111,5 +108,7 @@ export class Evolution {
         return this.getAliveCells();
     }
 
-
+    addAliveCell(cells: Cell[]) {
+        cells.forEach(cell => this.alive.set(cell.id, cell));
+    }
 }
